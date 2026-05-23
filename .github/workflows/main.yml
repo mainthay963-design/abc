@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1. Checkout source
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -25,6 +25,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
 
       # 3. Setup Android SDK + NDK
       - name: Set up Android SDK & NDK
@@ -33,6 +34,7 @@ jobs:
           packages: >
             platforms;android-33
             build-tools;33.0.2
+            platform-tools
             ndk;16.1.4479499
             cmake;3.10.2.4988404
           cmdline-tools-version: 12266719
@@ -68,16 +70,25 @@ jobs:
           APP_CPPFLAGS := -std=c++17
           "@ | Set-Content "client/jni/Application.mk"
 
+          Write-Host "Application.mk patched"
+
       # 7. Patch Android.mk
       - name: Patch Android.mk
         shell: powershell
         run: |
           $file = "client/jni/Android.mk"
 
+          if (!(Test-Path $file)) {
+              Write-Host "ERROR: Android.mk not found"
+              exit 1
+          }
+
           $content = Get-Content $file -Raw
 
           if ($content -notmatch "LOCAL_CPPFLAGS \+= -std=c\+\+17") {
-              $content = $content -replace "include \$\(CLEAR_VARS\)", "include `$(CLEAR_VARS)`r`nLOCAL_CPPFLAGS += -std=c++17`r`nLOCAL_LDLIBS += -latomic"
+              $content = $content -replace `
+              "include \$\(CLEAR_VARS\)", `
+              "include `$(CLEAR_VARS)`r`nLOCAL_CPPFLAGS += -std=c++17`r`nLOCAL_LDLIBS += -latomic"
           }
 
           Set-Content $file $content
@@ -131,6 +142,11 @@ jobs:
             APP_BUILD_SCRIPT=Android.mk ^
             APP_ABI=armeabi-v7a
 
+          if errorlevel 1 (
+            echo ERROR: NDK BUILD FAILED
+            exit /b 1
+          )
+
       # 9. Verify libsamp.so
       - name: Verify libsamp.so
         shell: cmd
@@ -153,7 +169,7 @@ jobs:
           $source = "client/libs/armeabi-v7a/libsamp.so"
           $dest = "app/src/main/jniLibs/armeabi-v7a"
 
-          New-Item -ItemType Directory -Force -Path $dest
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
           if (Test-Path $source) {
               Copy-Item $source "$dest/libsamp.so" -Force
@@ -183,40 +199,86 @@ jobs:
             exit /b 1
           )
 
-      # 13. Build APK
+      # 13. Grant gradle wrapper info
+      - name: Show Gradle Version
+        shell: cmd
+        run: |
+          call gradlew.bat --version
+
+      # 14. Build APK
       - name: Build Debug APK
         shell: cmd
         run: |
-          call gradlew.bat assembleDebug --stacktrace
+          call gradlew.bat assembleDebug --stacktrace --warning-mode all
 
-      # 14. Verify APK
-      - name: Verify APK
-        shell: cmd
-        run: |
-          echo.
-          echo ===== APK OUTPUT =====
-
-          if exist "app\build\outputs\apk\debug\app-debug.apk" (
-            echo APK BUILD SUCCESS
-            dir "app\build\outputs\apk\debug"
-          ) else (
-            echo ERROR: APK NOT FOUND
+          if errorlevel 1 (
+            echo ERROR: GRADLE BUILD FAILED
             exit /b 1
           )
 
-      # 15. Upload APK Artifact
+      # 15. Locate APK
+      - name: Locate APK
+        shell: powershell
+        run: |
+          Write-Host ""
+          Write-Host "===== SEARCHING APK ====="
+
+          $apk = Get-ChildItem `
+              -Path "app/build/outputs/apk" `
+              -Recurse `
+              -Filter *.apk |
+              Select-Object -First 1
+
+          if ($apk) {
+              Write-Host ""
+              Write-Host "===== APK FOUND ====="
+              Write-Host $apk.FullName
+
+              echo "APK_PATH=$($apk.FullName)" >> $env:GITHUB_ENV
+          }
+          else {
+              Write-Host ""
+              Write-Host "ERROR: APK NOT FOUND"
+
+              Write-Host ""
+              Write-Host "===== OUTPUT DIRECTORY ====="
+
+              if (Test-Path "app/build/outputs") {
+                  Get-ChildItem "app/build/outputs" -Recurse
+              }
+
+              exit 1
+          }
+
+      # 16. Verify APK
+      - name: Verify APK
+        shell: powershell
+        run: |
+          Write-Host ""
+          Write-Host "===== VERIFY APK ====="
+
+          if (Test-Path $env:APK_PATH) {
+              Write-Host "APK BUILD SUCCESS"
+              Get-Item $env:APK_PATH
+          }
+          else {
+              Write-Host "ERROR: APK PATH INVALID"
+              exit 1
+          }
+
+      # 17. Upload APK Artifact
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.APK_PATH }}
 
-      # 16. Upload APK to GitHub Release
+      # 18. Upload APK to GitHub Release
       - name: Upload APK to Release
         uses: softprops/action-gh-release@v2
         if: success()
         with:
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: ${{ env.APK_PATH }}
           tag_name: build-${{ github.run_number }}
           name: Debug Build v${{ github.run_number }}
           body: |
