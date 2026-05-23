@@ -34,9 +34,10 @@ android {
     // CẤU HÌNH QUAN TRỌNG: Gradle tự lấy libsamp.so từ thư mục client/libs
     sourceSets {
         main {
-            jniLibs.srcDirs = ['../client/libs']
+            jniLibs.srcDirs = ['src/main/jniLibs', '../client/libs']
+        }
     }
-    }
+
     packagingOptions {
         jniLibs {
             useLegacyPackaging = true
