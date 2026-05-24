@@ -23,9 +23,14 @@
     <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE"/>
     <uses-permission android:name="com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    
-    <uses-feature android:glEsVersion="0x00020000" android:required="true"/>
-    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+
+    <uses-feature
+        android:glEsVersion="0x00020000"
+        android:required="true"/>
+
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false"/>
 
     <application
         android:name=".App"
@@ -37,61 +42,71 @@
         android:largeHeap="true"
         android:requestLegacyExternalStorage="true"
         android:roundIcon="@drawable/sarp_logo"
-        android:screenOrientation="landscape"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar.FullScreen"
         android:usesCleartextTraffic="true"
         tools:ignore="DiscouragedApi"
         tools:replace="android:icon">
 
-        <provider 
-            android:name="androidx.core.content.FileProvider" 
-            android:authorities="com.samp.online.provider" 
-            android:exported="false" 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.samp.online.provider"
+            android:exported="false"
             android:grantUriPermissions="true">
-            <meta-data 
-                android:name="android.support.FILE_PROVIDER_PATHS" 
+
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/provider_paths"/>
         </provider>
 
-        <activity 
-            android:name=".core.GTASA" 
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode" 
-            android:label="@string/app_name" 
-            android:launchMode="singleTask" 
-            android:screenOrientation="landscape" 
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar.FullScreen" 
+        <!-- FIXED GTASA ACTIVITY -->
+        <activity
+            android:name=".core.GTASA"
+            android:configChanges="orientation|screenSize|uiMode"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar.FullScreen"
+            android:windowSoftInputMode="adjustResize"
             android:exported="false" />
 
-        <activity 
-            android:name=".launcher.activities.MainActivity" 
-            android:screenOrientation="landscape" 
-            android:exported="false" />
-            
-        <activity 
-            android:name=".launcher.activities.DownloadActivity" 
-            android:screenOrientation="landscape" 
+        <activity
+            android:name=".launcher.activities.MainActivity"
+            android:screenOrientation="landscape"
             android:exported="false" />
 
-        <activity 
-            android:name=".launcher.activities.SplashActivity" 
-            android:configChanges="orientation|screenSize" 
-            android:screenOrientation="landscape" 
+        <activity
+            android:name=".launcher.activities.DownloadActivity"
+            android:screenOrientation="landscape"
+            android:exported="false" />
+
+        <activity
+            android:name=".launcher.activities.SplashActivity"
+            android:configChanges="orientation|screenSize"
+            android:screenOrientation="landscape"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
         </activity>
 
-        <service 
-            android:name=".launcher.network.FirebaseMessageReceiver" 
+        <service
+            android:name=".launcher.network.FirebaseMessageReceiver"
             android:exported="false">
+
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
+
         </service>
 
-        <meta-data android:name="android.max_aspect" android:value="2.1"/>
+        <meta-data
+            android:name="android.max_aspect"
+            android:value="2.1"/>
+
     </application>
+
 </manifest>
