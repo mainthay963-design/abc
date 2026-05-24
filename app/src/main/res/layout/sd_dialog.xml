@@ -57,13 +57,13 @@
                 android:scrollbarTrackVertical="@drawable/players_list_scroll_thumb"
                 android:scrollbars="vertical"
                 android:visibility="gone"
-                app:layout_constraintBottom_toTopOf="@id/dialog_buttons"
+                app:layout_constrainedHeight="true"
+                app:layout_constraintBottom_toTopOf="@id/sd_dialog_input_layout"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintHeight_max="@dimen/_171sdp"
                 app:layout_constraintHorizontal_bias="0.0"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/sd_dialog_caption"
-                app:layout_constraintVertical_bias="0.0">
+                app:layout_constraintTop_toBottomOf="@id/sd_dialog_caption">
 
                 <LinearLayout
                     android:layout_width="fill_parent"
@@ -76,7 +76,7 @@
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/sqaure_studio"
                         android:maxWidth="@dimen/_400sdp"
-                        android:text="Text\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nText\nTe[...]"
+                        android:text="Text\nText\nText\nText\nText..."
                         android:textColor="@color/white"
                         android:textSize="@dimen/_10sdp"
                         app:layout_constraintStart_toStartOf="parent"
@@ -106,7 +106,7 @@
                     android:fontFamily="@font/muller_regular"
                     android:hint="...."
                     android:imeOptions="actionDone|flagNoExtractUi"
-                    android:inputType="textFilter|textMultiLine"
+                    android:inputType="textFilter|text"
                     android:lines="1"
                     android:maxLines="1"
                     android:paddingStart="@dimen/_6sdp"
@@ -131,10 +131,10 @@
                 android:layout_marginTop="@dimen/_6sdp"
                 android:layout_marginBottom="@dimen/_6sdp"
                 android:visibility="gone"
+                app:layout_constrainedHeight="true"
                 app:layout_constraintBottom_toTopOf="@id/dialog_buttons"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintHeight_max="@dimen/_171sdp"
-                app:layout_constraintHeight_min="@dimen/_171sdp"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/sd_dialog_caption">
 
@@ -217,7 +217,8 @@
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:id="@id/dialog_list"
                     android:layout_width="wrap_content"
-                    android:layout_height="0.0dip"
+                    android:layout_height="wrap_content"
+                    app:layout_constrainedHeight="true"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
@@ -226,7 +227,7 @@
                     <com.samp.online.gui.util.CustomRecyclerView
                         android:id="@id/sd_dialog_list_recycler"
                         android:layout_width="fill_parent"
-                        android:layout_height="0.0dip"
+                        android:layout_height="wrap_content"
                         android:layout_marginStart="@dimen/_4sdp"
                         android:layout_marginTop="@dimen/_4sdp"
                         android:layout_marginEnd="@dimen/_4sdp"
@@ -239,6 +240,7 @@
                         android:scrollbarTrackVertical="@drawable/players_list_scroll_track"
                         android:scrollbars="vertical"
                         android:visibility="visible"
+                        app:layout_constrainedHeight="true"
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
@@ -256,9 +258,7 @@
                 android:visibility="visible"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/sd_dialog_caption"
-                app:layout_constraintVertical_bias="1.0">
+                app:layout_constraintStart_toStartOf="parent">
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:id="@id/sd_button_positive"
