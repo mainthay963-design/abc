@@ -10,7 +10,6 @@
 #include <string.h>
 #include <sstream>
 #include <iostream>
-#include <vector>
 
 extern CGUI* pGUI;
 extern CGame* pGame;
@@ -21,24 +20,12 @@ extern CScoreBoard* pScoreBoard;
 char szDialogInputBuffer[100];
 char utf8DialogInputBuffer[100 * 3];
 
-static float GetKeyboardOffset()
-{
-	if (pKeyBoard && pKeyBoard->IsOpen() && pGUI)
-	{
-		ImGuiIO& io = ImGui::GetIO();
-		return io.DisplaySize.y * 0.55f; // Đã sửa: Đồng bộ 55% chiều cao màn hình với CKeyBoard
-	}
-
-	return 0.0f;
-}
-
 CDialogWindow::CDialogWindow()
 {
 	m_bIsActive = false;
 	m_putf8Info = nullptr;
 	m_pszInfo = nullptr;
 }
-
 ImVec2 CalcTextSizeWithoutTags(char* szStr)
 {
 	if (!szStr) return ImVec2(0, 0);
@@ -46,9 +33,9 @@ ImVec2 CalcTextSizeWithoutTags(char* szStr)
 	char szNonColored[2048 + 1];
 	int iNonColoredMsgLen = 0;
 
-	for (int pos = 0; pos < (int)strlen(szStr) && szStr[pos] != '\0'; pos++)
+	for (int pos = 0; pos < strlen(szStr) && szStr[pos] != '\0'; pos++)
 	{
-		if (pos + 7 < (int)strlen(szStr))
+		if (pos + 7 < strlen(szStr))
 		{
 			if (szStr[pos] == '{' && szStr[pos + 7] == '}')
 			{
@@ -65,20 +52,20 @@ ImVec2 CalcTextSizeWithoutTags(char* szStr)
 
 	return ImGui::CalcTextSize(szNonColored);
 }
-
 CDialogWindow::~CDialogWindow()
 {
+
 }
 
 void CDialogWindow::Show(bool bShow)
 {
-	/*if (pNetGame)
+	if (pNetGame)
 	{
 		if (pGame && pGame->FindPlayerPed()
 			&& !pNetGame->GetTextDrawPool()->m_bSelectState)
-			//if(!pGame->FindPlayerPed()->GetVehicleSeatID())
+			//if(!pGame->FindPlayerPed()->GetVehicleSeatID()) 
 			pGame->FindPlayerPed()->TogglePlayerControllable(!bShow);
-	}*/
+	}
 
 	m_bIsActive = bShow;
 }
@@ -108,8 +95,8 @@ void CDialogWindow::Clear()
 	m_fSizeX = -1.0f;
 	m_fSizeY = -1.0f;
 
-	memset(szDialogInputBuffer, 0, sizeof(szDialogInputBuffer));
-	memset(utf8DialogInputBuffer, 0, sizeof(utf8DialogInputBuffer));
+	memset(szDialogInputBuffer, 0, 100);
+	memset(utf8DialogInputBuffer, 0, 100 * 3);
 }
 
 void CDialogWindow::SetInfo(char* szInfo, int length)
@@ -131,14 +118,14 @@ void CDialogWindow::SetInfo(char* szInfo, int length)
 	m_putf8Info = (char*)malloc((length * 3) + 1);
 	if (!m_putf8Info)
 	{
-		Log(OBFUSCATE("CDialog::SetInfo: can't allocate memory"));
+		Log("CDialog::SetInfo: can't allocate memory");
 		return;
 	}
 
 	m_pszInfo = (char*)malloc((length * 3) + 1);
 	if (!m_pszInfo)
 	{
-		Log(OBFUSCATE("CDialog::SetInfo: can't allocate memory"));
+		Log("CDialog::SetInfo: can't allocate memory");
 		return;
 	}
 
@@ -188,18 +175,21 @@ void TextWithColors(const char* fmt, ...)
 	{
 		if (*textCur == '{')
 		{
+			// Print accumulated text
 			if (textCur != textStart)
 			{
 				ImGui::TextUnformatted(textStart, textCur);
 				ImGui::SameLine(0.0f, 0.0f);
 			}
 
+			// Process color code
 			const char* colorStart = textCur + 1;
 			do
 			{
 				++textCur;
 			} while (*textCur != '\0' && *textCur != '}');
 
+			// Change color
 			if (pushedColorStyle)
 			{
 				ImGui::PopStyleColor();
@@ -217,6 +207,7 @@ void TextWithColors(const char* fmt, ...)
 		}
 		else if (*textCur == '\n')
 		{
+			// Print accumulated text an go to next line
 			ImGui::TextUnformatted(textStart, textCur);
 			textStart = textCur + 1;
 		}
@@ -259,20 +250,27 @@ std::string removeColorTags(std::string line)
 	}
 	return string;
 }
-
 #include "chatwindow.h"
 extern CChatWindow* pChatWindow;
-#include "CServerManager.h"
-#include "CSettings.h"
+#include "clientlogic/CNetwork.h"
+#include "settings.h"
 extern CSettings* pSettings;
-
 void CDialogWindow::RenderTabList(int dStyle)
 {
-	std::string strUtf8 = m_putf8Info ? m_putf8Info : "";
+	// Guard: Kiểm tra dữ liệu cơ bản
+	if (!m_putf8Info || strlen(m_putf8Info) == 0)
+	{
+		return;
+	}
+
+	std::string strUtf8 = m_putf8Info;
+	int size = strUtf8.length();
 	int iTabsCount = 0;
 	std::vector<std::string> vLines;
 	std::vector<std::string> firstTabs;
-	ImVec2 fTabSize[4] = {};
+	
+	// QUAN TRỌNG: Khởi tạo array fTabSize
+	ImVec2 fTabSize[4] = { ImVec2(0,0), ImVec2(0,0), ImVec2(0,0), ImVec2(0,0) };
 
 	int tmplineid = 0;
 	std::stringstream ssLine(strUtf8);
@@ -287,174 +285,153 @@ void CDialogWindow::RenderTabList(int dStyle)
 			std::string tmpTabLine;
 			while (std::getline(ssTabLine, tmpTabLine, '\t'))
 			{
-				if (tmpTabId >= 4) break;
-
+				if (tmpTabId >= 4) continue;
 				if (vLines.size() == 1 && iTabsCount <= 4)
 					iTabsCount++;
-
-				ImVec2 tabSize = CalcTextSizeWithoutTags((char*)tmpTabLine.c_str());
+				ImVec2 tabSize;
+				tabSize = CalcTextSizeWithoutTags((char*)tmpTabLine.c_str());
 
 				if (tmpTabId == 0)
 					firstTabs.push_back(removeColorTags(tmpTabLine));
 
 				if (tabSize.x > fTabSize[tmpTabId].x)
 				{
-					fTabSize[tmpTabId].x = pGUI->ScaleX(tabSize.x);
+					fTabSize[tmpTabId].x = tabSize.x;
 				}
 				tmpTabId++;
 			}
 		}
 		else
 		{
-			ImVec2 tabSize = CalcTextSizeWithoutTags((char*)tmpLine.c_str());
+			ImVec2 tabSize;
+			tabSize = CalcTextSizeWithoutTags((char*)tmpLine.c_str());
 
 			if (tmpTabId == 0)
 				firstTabs.push_back(tmpLine);
 
 			if (tabSize.x > fTabSize[tmpTabId].x)
 			{
-				fTabSize[tmpTabId].x = pGUI->ScaleX(tabSize.x);
+				fTabSize[tmpTabId].x = tabSize.x;
 			}
 		}
 		tmplineid++;
+	}
+
+	// Guard: Kiểm tra dữ liệu sau khi parse
+	if (vLines.empty() || firstTabs.empty())
+	{
+		return;
+	}
+
+	// Guard: Đảm bảo iTabsCount > 0 để tránh chia cho 0
+	if (iTabsCount <= 0)
+		iTabsCount = 1;
+
+	// Guard: Đảm bảo m_iSelectedItem trong phạm vi hợp lệ
+	if (m_iSelectedItem < 0 || m_iSelectedItem >= static_cast<int>(vLines.size()))
+	{
+		m_iSelectedItem = 0;
 	}
 
 	if (iTabsCount == 1 && dStyle == DIALOG_STYLE_TABLIST)
 		dStyle = DIALOG_STYLE_LIST;
 
 	ImGuiIO& io = ImGui::GetIO();
+	int x = io.DisplaySize.x, y = io.DisplaySize.y;
 
 	float buttonFactor = pGUI->ScaleX(187.5f) * 2 + pGUI->GetFontSize();
 
-	ImVec2 vecWinSize(0.0f, 720.0f);
-
+	ImVec2 vecWinSize = ImVec2(0, 0); // Khởi tạo rõ ràng
 	if (dStyle != DIALOG_STYLE_LIST)
 	{
 		for (uint8_t i = 0; i < iTabsCount; i++)
 		{
-			vecWinSize.x += fTabSize[i].x * (i == iTabsCount - 1 ? 1.25f : 1.5f);
+			vecWinSize.x += fTabSize[i].x * (i == iTabsCount - 1 ? 1.25 : 1.5);
 		}
 	}
-	else
-	{
-		vecWinSize.x += fTabSize[0].x * 1.25f;
-	}
-
+	else vecWinSize.x += fTabSize[0].x * 1.25;
+	
 	if (buttonFactor > vecWinSize.x)
 	{
 		vecWinSize.x = 0.0f;
 
 		if (dStyle != DIALOG_STYLE_LIST)
 		{
+			// Guard: Tránh chia cho 0
 			if (iTabsCount > 0)
 				buttonFactor /= iTabsCount;
-
 			for (uint8_t i = 0; i < iTabsCount; i++)
 			{
 				vecWinSize.x += fTabSize[i].x + buttonFactor;
 			}
 		}
-		else
-			vecWinSize.x += fTabSize[0].x + buttonFactor;
+		else vecWinSize.x += fTabSize[0].x + buttonFactor;
 	}
 	else
-	{
-		buttonFactor = 0.0f;
-	}
+		buttonFactor = 0;
+
+	vecWinSize.y = 720;
 
 	if (vLines.size() > 7)
 		vecWinSize.x += ImGui::GetStyle().ScrollbarSize;
 
-	if (vecWinSize.x < pGUI->ScaleX(800.0f))
-		vecWinSize.x = pGUI->ScaleX(800.0f);
-
-	if (vecWinSize.x > pGUI->ScaleX(1800.0f))
-		vecWinSize.x = pGUI->ScaleX(1800.0f);
-
-	ImVec2 winSize(
-		pGUI->ScaleX(vecWinSize.x + pGUI->GetFontSize()),
-		pGUI->ScaleY(vecWinSize.y) + (dStyle == DIALOG_STYLE_TABLIST_HEADERS ? pGUI->ScaleY(187.5f) / 2.0f : 0.0f)
-	);
-
-	float keyboardOffset = GetKeyboardOffset();
-	float posX = ((io.DisplaySize.x - winSize.x) / 2.0f);
-	float posY = ((io.DisplaySize.y - winSize.y - keyboardOffset) / 2.0f);
-
-	if (posY < 10.0f)
-		posY = 10.0f;
-
-	ImGui::SetNextWindowPos(ImVec2(posX, posY));
-	ImGui::SetNextWindowSize(winSize);
-
-	ImGui::Begin(" ", nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
-
+	ImGui::Begin(" ", nullptr, ImVec2(pGUI->ScaleX(vecWinSize.x + pGUI->GetFontSize()), pGUI->ScaleY(vecWinSize.y)), 0.9f, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
 	m_bRendered = true;
 	TextWithColors(m_utf8Title);
 	ImGui::ItemSize(ImVec2(0, pGUI->GetFontSize() / 2 + 2.75f));
 
 	ImVec2 cursonPosition;
 	cursonPosition = ImGui::GetCursorPos();
-
 	if (dStyle == DIALOG_STYLE_TABLIST_HEADERS)
 	{
-		ImGui::Columns(iTabsCount, OBFUSCATE("###tablistHeader"), false);
+		ImGui::Columns(iTabsCount, "###tablistHeader", false);
 		for (uint16_t i = 0; i < iTabsCount; i++)
 		{
-			ImGui::SetColumnWidth(-1, fTabSize[i].x * (i == iTabsCount - 1 ? 1.25f : 1.5f) + buttonFactor);
+			ImGui::SetColumnWidth(-1, fTabSize[i].x * (i == iTabsCount - 1 ? 1.25 : 1.5) + buttonFactor);
 			ImGui::NextColumn();
 		}
-
-		std::stringstream ssTabLine(vLines[0]);
-		std::string tmpTabLine;
-		int tmpTabId = 0;
-		while (std::getline(ssTabLine, tmpTabLine, '\t'))
+		
+		// Guard: Kiểm tra vLines không rỗng trước khi truy cập vLines[0]
+		if (!vLines.empty())
 		{
-			if (tmpTabId > iTabsCount) continue;
-
-			tmpTabLine.insert(0, OBFUSCATE("{a9c4e4}"));
-			if (tmpTabId == 0)
+			std::stringstream ssTabLine(vLines[0]);
+			std::string tmpTabLine;
+			int tmpTabId = 0;
+			while (std::getline(ssTabLine, tmpTabLine, '\t'))
 			{
-				cursonPosition = ImGui::GetCursorPos();
-				ImGui::SetCursorPosX(cursonPosition.x + pGUI->GetFontSize() / 3);
+				if (tmpTabId > iTabsCount) continue;
+				tmpTabLine.insert(0, "{a9c4e4}");
+				if (tmpTabId == 0)
+				{
+					cursonPosition = ImGui::GetCursorPos();
+					ImGui::SetCursorPosX(cursonPosition.x + pGUI->GetFontSize() / 3);
+				}
+				TextWithColors(tmpTabLine.c_str());
+				ImGui::NextColumn();
+				tmpTabId++;
 			}
-			TextWithColors(tmpTabLine.c_str());
-			ImGui::NextColumn();
-			tmpTabId++;
 		}
 		ImGui::Columns(1);
 	}
-
-	float tsize = 0.0f;
-
-	if (vecWinSize.x > pGUI->ScaleX(1800.0f))
-	{
-		for (auto& tabSize : fTabSize)
-			tsize += tabSize.x;
-
-		tsize -= ImGui::GetStyle().ScrollbarSize;
-	}
-	else tsize = -1.0f;
-
-	ImGui::BeginChild(OBFUSCATE("###tablist"), ImVec2(tsize, pGUI->ScaleY(vecWinSize.y) - pGUI->ScaleY(95.0f * 2)), false, ImGuiWindowFlags_HorizontalScrollbar);
+	ImGui::BeginChild("###tablist", ImVec2(-1, pGUI->ScaleY(vecWinSize.y) - pGUI->ScaleY(95.0f * 2)));
 
 	if (dStyle != DIALOG_STYLE_LIST)
 	{
-		ImGui::Columns(iTabsCount, OBFUSCATE("###tablistColumn"), false);
+		ImGui::Columns(iTabsCount, "###tablistColumn", false);
 		for (uint16_t i = 0; i < iTabsCount; i++)
 		{
-			ImGui::SetColumnWidth(-1, fTabSize[i].x * (i == iTabsCount - 1 ? 1.25f : 1.5f) + buttonFactor);
+			ImGui::SetColumnWidth(-1, fTabSize[i].x * (i == iTabsCount - 1 ? 1.25 : 1.5) + buttonFactor);
 			ImGui::NextColumn();
 		}
 	}
-
+	
 	for (uint32_t line = dStyle == DIALOG_STYLE_TABLIST_HEADERS ? 1 : 0; line < vLines.size(); line++)
 	{
 		std::stringstream ssTabLine(vLines[line]);
 		std::string tmpTabLine;
 		int tmpTabId = 0;
 
-		ImVec2 differentOffsets = ImVec2(0.0f, 0.0f);
-
+		ImVec2 differentOffsets = ImVec2(0, 0); // Khởi tạo rõ ràng
 		if (tmpTabId == 0)
 		{
 			ImGui::GetStyle().Colors[ImGuiCol_HeaderActive] = (ImVec4)ImColor(119, 4, 4, 255);
@@ -463,69 +440,76 @@ void CDialogWindow::RenderTabList(int dStyle)
 
 			ImGui::PushID(tmpTabId + line);
 
-			std::stringstream ss;
-			ss << line + tmpTabId;
-			std::string s = ss.str();
-
-			std::string itemid = "##" + s;
-			bool is_selected = (m_iSelectedItem == line);
+			// Sử dụng sprintf thay vì std::to_string
+			char lineStr[32];
+			sprintf(lineStr, "%d", line + tmpTabId);
+			std::string itemid = "##" + std::string(lineStr);
+			bool is_selected = (m_iSelectedItem == static_cast<int>(line));
 
 			ImVec2 cursonPosition;
 			cursonPosition = ImGui::GetCursorPos();
 
 			if (ImGui::Selectable(itemid.c_str(), is_selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick))
-				if (ImGui::IsMouseDoubleClicked(0) && m_iSelectedItem == line)
+				if (ImGui::IsMouseDoubleClicked(0))
 				{
 					Show(false);
 					if (pNetGame)
 					{
-						if (dStyle == DIALOG_STYLE_TABLIST_HEADERS) m_iSelectedItem--;
-						pNetGame->SendDialogResponse(m_wDialogID, 1, m_iSelectedItem, (char*)firstTabs[m_iSelectedItem].c_str());
+						// Guard: Kiểm tra bounds trước khi truy cập firstTabs
+						if (m_iSelectedItem < static_cast<int>(firstTabs.size()))
+							pNetGame->SendDialogResponse(m_wDialogID, 1, m_iSelectedItem, (char*)firstTabs[m_iSelectedItem].c_str());
+						else
+							pNetGame->SendDialogResponse(m_wDialogID, 1, m_iSelectedItem, "");
 					}
 					else
 					{
-						pNetGame = new CNetGame(
-							g_sEncryptedAddresses[m_iSelectedItem].decrypt(),
-							g_sEncryptedAddresses[m_iSelectedItem].getPort(),
-							pSettings->GetReadOnly().szNickName,
-							pSettings->GetReadOnly().szPassword);
+						// Guard: Kiểm tra bounds trước khi truy cập g_sEncryptedAddresses
+						if (m_iSelectedItem < static_cast<int>(firstTabs.size()))
+						{
+							pNetGame = new CNetGame(
+								g_sEncryptedAddresses[m_iSelectedItem].decrypt(),
+								g_sEncryptedAddresses[m_iSelectedItem].getPort(),
+								pSettings->GetReadOnly().szNickName,
+								pSettings->GetReadOnly().szPassword);
+						}
 					}
 				}
-
 			if (ImGui::IsItemHovered())
 			{
 				m_iSelectedItem = line;
 			}
-
-			ss.clear();
-			ss << line + tmpTabId + 1;
-			s = ss.str();
-			itemid = "##" + s;
-
+			
+			sprintf(lineStr, "%d", line + tmpTabId + 1);
+			itemid = "##" + std::string(lineStr);
 			if (ImGui::Selectable(itemid.c_str(), is_selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick))
-				if (ImGui::IsMouseDoubleClicked(0) && m_iSelectedItem == line)
+				if (ImGui::IsMouseDoubleClicked(0))
 				{
 					Show(false);
 					if (pNetGame)
 					{
-						if (dStyle == DIALOG_STYLE_TABLIST_HEADERS) m_iSelectedItem--;
-						pNetGame->SendDialogResponse(m_wDialogID, 1, m_iSelectedItem, (char*)firstTabs[m_iSelectedItem].c_str());
+						// Guard: Kiểm tra bounds trước khi truy cập firstTabs
+						if (m_iSelectedItem < static_cast<int>(firstTabs.size()))
+							pNetGame->SendDialogResponse(m_wDialogID, 1, m_iSelectedItem, (char*)firstTabs[m_iSelectedItem].c_str());
+						else
+							pNetGame->SendDialogResponse(m_wDialogID, 1, m_iSelectedItem, "");
 					}
 					else
 					{
-						pNetGame = new CNetGame(
-							g_sEncryptedAddresses[m_iSelectedItem].decrypt(),
-							g_sEncryptedAddresses[m_iSelectedItem].getPort(),
-							pSettings->GetReadOnly().szNickName,
-							pSettings->GetReadOnly().szPassword);
+						// Guard: Kiểm tra bounds trước khi truy cập g_sEncryptedAddresses
+						if (m_iSelectedItem < static_cast<int>(firstTabs.size()))
+						{
+							pNetGame = new CNetGame(
+								g_sEncryptedAddresses[m_iSelectedItem].decrypt(),
+								g_sEncryptedAddresses[m_iSelectedItem].getPort(),
+								pSettings->GetReadOnly().szNickName,
+								pSettings->GetReadOnly().szPassword);
+						}
 					}
 				}
-
 			if (ImGui::IsItemHovered())
 			{
 				m_iSelectedItem = line;
 			}
-
 			ImVec2 cursonPositionLast;
 			cursonPositionLast = ImGui::GetCursorPos();
 
@@ -537,7 +521,6 @@ void CDialogWindow::RenderTabList(int dStyle)
 			if (dStyle != DIALOG_STYLE_LIST)
 				ImGui::SameLine();
 		}
-
 		if (dStyle != DIALOG_STYLE_LIST)
 		{
 			int icolumnsLeft = iTabsCount;
@@ -555,11 +538,9 @@ void CDialogWindow::RenderTabList(int dStyle)
 					ImGui::SetCursorPos(ImVec2(cursonPos.x, cursonPos.y - differentOffsets.y / 4));
 				}
 				else
-				{
 					ImGui::SetCursorPos(ImVec2(cursonPos.x, cursonPos.y + differentOffsets.y / 4));
-				}
 
-				tmpTabLine.insert(0, OBFUSCATE("{ffffff}"));
+				tmpTabLine.insert(0, "{ffffff}");
 				TextWithColors((char*)tmpTabLine.c_str());
 				ImGui::SetCursorPos(ImVec2(cursonPos.x, cursonPos.y + differentOffsets.y / 2));
 
@@ -570,7 +551,6 @@ void CDialogWindow::RenderTabList(int dStyle)
 				}
 				tmpTabId++;
 			}
-
 			if (dStyle != DIALOG_STYLE_LIST && icolumnsLeft >= 0)
 			{
 				for (int i = 0; i < icolumnsLeft; i++)
@@ -584,20 +564,22 @@ void CDialogWindow::RenderTabList(int dStyle)
 			ImVec2 cursonPos;
 			cursonPos = ImGui::GetCursorPos();
 
-			if (line == m_iSelectedItem)
+			// Guard: Kiểm tra bounds trước khi truy cập vLines
+			if (line == m_iSelectedItem && line < vLines.size())
 				m_strSelectedItemText = vLines[line];
-
 			ImGui::SetCursorPos(ImVec2(cursonPos.x, cursonPos.y - differentOffsets.y + pGUI->GetFontSize() / 2));
 
-			vLines[line].insert(0, OBFUSCATE("{ffffff}"));
-			TextWithColors((char*)vLines[line].c_str());
+			if (line < vLines.size()) // Guard: Kiểm tra bounds
+			{
+				vLines[line].insert(0, "{ffffff}");
+				TextWithColors((char*)vLines[line].c_str());
+			}
 			ImGui::SetCursorPos(ImVec2(cursonPos.x, cursonPos.y));
 		}
 	}
 
 	if (dStyle != DIALOG_STYLE_LIST)
 		ImGui::Columns(1);
-
 	ImGui::EndChild();
 
 	if (m_utf8Button1[0] != 0 && m_utf8Button2[0] != 0)
@@ -614,22 +596,29 @@ void CDialogWindow::RenderTabList(int dStyle)
 			if (dStyle == DIALOG_STYLE_TABLIST_HEADERS && !m_iSelectedItem)
 				TempItem = 0;
 			else TempItem = m_iSelectedItem - 1;
-
 			if (pNetGame)
-				pNetGame->SendDialogResponse(m_wDialogID, 1, dStyle == DIALOG_STYLE_TABLIST_HEADERS ? TempItem : m_iSelectedItem, (char*)firstTabs[m_iSelectedItem].c_str());
+			{
+				// Guard: Kiểm tra bounds trước khi truy cập firstTabs
+				if (m_iSelectedItem < static_cast<int>(firstTabs.size()))
+					pNetGame->SendDialogResponse(m_wDialogID, 1, dStyle == DIALOG_STYLE_TABLIST_HEADERS ? TempItem : m_iSelectedItem, (char*)firstTabs[m_iSelectedItem].c_str());
+				else
+					pNetGame->SendDialogResponse(m_wDialogID, 1, dStyle == DIALOG_STYLE_TABLIST_HEADERS ? TempItem : m_iSelectedItem, "");
+			}
 			else
 			{
-				pNetGame = new CNetGame(
-					g_sEncryptedAddresses[m_iSelectedItem].decrypt(),
-					g_sEncryptedAddresses[m_iSelectedItem].getPort(),
-					pSettings->GetReadOnly().szNickName,
-					pSettings->GetReadOnly().szPassword);
+				// Guard: Kiểm tra bounds trước khi truy cập g_sEncryptedAddresses
+				if (m_iSelectedItem < static_cast<int>(firstTabs.size()))
+				{
+					pNetGame = new CNetGame(
+						g_sEncryptedAddresses[m_iSelectedItem].decrypt(),
+						g_sEncryptedAddresses[m_iSelectedItem].getPort(),
+						pSettings->GetReadOnly().szNickName,
+						pSettings->GetReadOnly().szPassword);
+				}
 			}
 		}
 	}
-
 	ImGui::SameLine(0, pGUI->GetFontSize());
-
 	if (m_utf8Button2[0] != 0)
 	{
 		if (ImGui::Button(m_utf8Button2, ImVec2(pGUI->ScaleX(193.5f), pGUI->ScaleY(75.0f))))
@@ -639,29 +628,32 @@ void CDialogWindow::RenderTabList(int dStyle)
 			if (dStyle == DIALOG_STYLE_TABLIST_HEADERS && !m_iSelectedItem)
 				TempItem = 0;
 			else TempItem = m_iSelectedItem - 1;
-
 			if (pNetGame)
-				pNetGame->SendDialogResponse(m_wDialogID, 0, dStyle == DIALOG_STYLE_TABLIST_HEADERS ? TempItem : m_iSelectedItem, (char*)firstTabs[m_iSelectedItem].c_str());
+			{
+				// Guard: Kiểm tra bounds trước khi truy cập firstTabs
+				if (m_iSelectedItem < static_cast<int>(firstTabs.size()))
+					pNetGame->SendDialogResponse(m_wDialogID, 0, dStyle == DIALOG_STYLE_TABLIST_HEADERS ? TempItem : m_iSelectedItem, (char*)firstTabs[m_iSelectedItem].c_str());
+				else
+					pNetGame->SendDialogResponse(m_wDialogID, 0, dStyle == DIALOG_STYLE_TABLIST_HEADERS ? TempItem : m_iSelectedItem, "");
+			}
 			else
 			{
-				pNetGame = new CNetGame(
-					g_sEncryptedAddresses[m_iSelectedItem].decrypt(),
-					g_sEncryptedAddresses[m_iSelectedItem].getPort(),
-					pSettings->GetReadOnly().szNickName,
-					pSettings->GetReadOnly().szPassword);
+				// Guard: Kiểm tra bounds trước khi truy cập g_sEncryptedAddresses
+				if (m_iSelectedItem < static_cast<int>(firstTabs.size()))
+				{
+					pNetGame = new CNetGame(
+						g_sEncryptedAddresses[m_iSelectedItem].decrypt(),
+						g_sEncryptedAddresses[m_iSelectedItem].getPort(),
+						pSettings->GetReadOnly().szNickName,
+						pSettings->GetReadOnly().szPassword);
+				}
 			}
 		}
 	}
+	ImGui::SetWindowSize(ImVec2(vecWinSize.x, pGUI->ScaleY(vecWinSize.y + dStyle == DIALOG_STYLE_TABLIST_HEADERS ? pGUI->ScaleY(187.5f) / 2 : 0)));
+	ImVec2 winsize = ImGui::GetWindowSize();
+	ImGui::SetWindowPos(ImVec2(((io.DisplaySize.x - winsize.x) / 2), ((io.DisplaySize.y - winsize.y) / 2)));
 
-	ImVec2 winSizeFinal = ImGui::GetWindowSize();
-	float keyboardOffsetFinal = GetKeyboardOffset();
-	float posXFinal = ((io.DisplaySize.x - winSizeFinal.x) / 2.0f);
-	float posYFinal = ((io.DisplaySize.y - winSizeFinal.y - keyboardOffsetFinal) / 2.0f);
-
-	if (posYFinal < 10.0f)
-		posYFinal = 10.0f;
-
-	ImGui::SetWindowPos(ImVec2(posXFinal, posYFinal));
 	ImGui::End();
 }
 
@@ -672,13 +664,13 @@ void CDialogWindow::Render()
 
 	ImGuiIO& io = ImGui::GetIO();
 
+	ImGui::SetNextWindowSize(ImVec2(0, 0));
+	ImGui::SetNextWindowPosCenter();
+
 	if (m_byteDialogStyle == DIALOG_STYLE_TABLIST_HEADERS || m_byteDialogStyle == DIALOG_STYLE_TABLIST || m_byteDialogStyle == DIALOG_STYLE_LIST)
 		return RenderTabList(m_byteDialogStyle);
 
-	ImGui::SetNextWindowSize(ImVec2(0, 0));
-	
-	// Đã sửa: Xóa/Comment dòng ImGui::SetNextWindowPosCenter() để phần tính toán SetWindowPos bên dưới hoạt động
-	// ImGui::SetNextWindowPosCenter();
+	//ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pGUI->GetFontSize(), pGUI->GetFontSize()));
 
 	ImGui::Begin(" ", nullptr,
 		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
@@ -711,11 +703,10 @@ void CDialogWindow::Render()
 	case DIALOG_STYLE_PASSWORD:
 		TextWithColors(m_putf8Info);
 		ImGui::ItemSize(ImVec2(0, pGUI->GetFontSize() / 2 + 10));
-
 		char _utf8DialogInputBuffer[100 * 3 + 1];
 		strcpy(_utf8DialogInputBuffer, utf8DialogInputBuffer);
 
-		for (int i = 0; i < (int)strlen(_utf8DialogInputBuffer); i++)
+		for (int i = 0; i < strlen(_utf8DialogInputBuffer); i++)
 		{
 			if (_utf8DialogInputBuffer[i] == '\0')
 				break;
@@ -745,9 +736,7 @@ void CDialogWindow::Render()
 				pNetGame->SendDialogResponse(m_wDialogID, 1, 0, szDialogInputBuffer);
 		}
 	}
-
 	ImGui::SameLine(0, pGUI->GetFontSize());
-
 	if (m_utf8Button2[0] != 0)
 	{
 		if (ImGui::Button(m_utf8Button2, ImVec2(pGUI->ScaleX(187.5f), pGUI->ScaleY(75.0f))))
@@ -759,13 +748,8 @@ void CDialogWindow::Render()
 	}
 
 	ImVec2 size = ImGui::GetWindowSize();
-	float keyboardOffset = GetKeyboardOffset();
-	float posX = ((io.DisplaySize.x - size.x) / 2.0f);
-	float posY = ((io.DisplaySize.y - size.y - keyboardOffset) / 2.0f);
-
-	if (posY < 10.0f)
-		posY = 10.0f;
-
-	ImGui::SetWindowPos(ImVec2(posX, posY));
+	ImGui::SetWindowPos(ImVec2(((io.DisplaySize.x - size.x) / 2), ((io.DisplaySize.y - size.y) / 2)));
 	ImGui::End();
+
+	//ImGui::PopStyleVar();
 }
