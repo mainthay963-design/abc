@@ -69,13 +69,16 @@ public class Dialog {
         for (int i = 0; i < mHeadersLayout.getChildCount(); i++) {
             this.mHeadersList.add((TextView) mHeadersLayout.getChildAt(i));
         }
+        // FIX: Auto submit dialog when Enter is pressed
         this.mInput.setOnEditorActionListener((textView, i, keyEvent) -> {
             Editable editableText;
             if ((i != 6 && i != 5) || (editableText = this.mInput.getText()) == null) {
                 return false;
             }
             this.mCurrentInputText = editableText.toString();
-            return false;
+            // Auto submit on Enter key (EditorInfo.IME_ACTION_GO or EditorInfo.IME_ACTION_DONE)
+            sendDialogResponse(1);
+            return true;  // Consume the event
         });
         this.mInput.setOnClickListener(view ->
         {
